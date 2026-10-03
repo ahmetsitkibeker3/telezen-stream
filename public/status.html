@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>teleZEN • Yayın durumu</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #101419;
+      color: #eef2f5;
+      font: 16px system-ui, sans-serif;
+      line-height: 1.6;
+    }
+    main { max-width: 720px; margin: auto; padding: 40px 20px; }
+    .brand { color: #8de297; letter-spacing: .15em; }
+    h1 { font-size: 30px; line-height: 1.2; }
+    .card {
+      background: #1b232c;
+      border: 1px solid #344352;
+      border-radius: 16px;
+      padding: 22px;
+      margin: 20px 0;
+    }
+    button {
+      font: inherit;
+      cursor: pointer;
+      border: 0;
+      border-radius: 9px;
+      padding: 12px 18px;
+      background: #a4ef96;
+      color: #10200d;
+      font-weight: 650;
+    }
+    button:disabled { opacity: .5; }
+    a { color: #b0ddb8; }
+    .muted { color: #b1bdc8; font-size: 14px; }
+    input {
+      width: 100%;
+      padding: 12px;
+      background: #101419;
+      border: 1px solid #465867;
+      border-radius: 8px;
+      color: white;
+      font: 14px monospace;
+      margin: 10px 0;
+    }
+    pre {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      background: #101419;
+      padding: 14px;
+      border-radius: 8px;
+      font-size: 13px;
+    }
+    .row { display: flex; gap: 12px; flex-wrap: wrap; }
+    #result { font-weight: 650; }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="brand">teleZEN / ZENDEX</div>
+    <h1>Yayın durumunu kontrol et</h1>
+    <p class="muted">
+      Sürüm 3.1.0 · Kick yayın adresi doğrudan kanaldan alınır.
+    </p>
+
+    <div class="card">
+      <p id="result" role="status" aria-live="polite">Kontrol bekleniyor.</p>
+      <p id="detail">
+        Bu sayfanın açılması sunucunun çalıştığını gösterir.
+        Yayın erişimi ayrıca test edilir.
+      </p>
+      <button id="test">Yayını kontrol et</button>
+      <pre id="json" hidden></pre>
+    </div>
+
+    <div class="card">
+      <strong>Sabit M3U8 adresin</strong>
+      <input id="stream" readonly aria-label="M3U8 adresi">
+      <div class="row">
+        <button id="copy">Adresi kopyala</button>
+        <a href="/health">Sunucu kontrolü</a>
+      </div>
+      <p class="muted">
+        Adresi VLC → Ağ akışı aç bölümüne veya Zendex oynatıcısına yapıştır.
+        Chrome’da doğrudan açmak video oynatımını doğrulamaz.
+      </p>
+    </div>
+
+    <p class="muted">
+      Yayın kapandığında görüntü kesilir. Yeniden açıldığında aynı servis
+      adresi güncel Kick bağlantısını arar. Oynatıcıda yeniden başlatman
+      gerekebilir.
+    </p>
+  </main>
+
+  <script>
+    const result = document.getElementById('result');
+    const detail = document.getElementById('detail');
+    const button = document.getElementById('test');
+    const output = document.getElementById('json');
+    const stream = document.getElementById('stream');
+
+    stream.value = location.origin + '/telezen.m3u8';
+
+    button.addEventListener('click', async () => {
+      button.disabled = true;
+      result.textContent = 'Kick ve ana yayın listesi kontrol ediliyor…';
+      output.hidden = true;
+
+      try {
+        const response = await fetch('/api/status', {
+          cache: 'no-store',
+          signal: AbortSignal.timeout(35000)
+        });
+        const data = await response.json();
+
+        output.hidden = false;
+        output.textContent = JSON.stringify(data, null, 2);
+
+        if (data.ok && data.masterPlaylist) {
+          result.textContent = 'Ana yayın listesi erişilebilir';
+          detail.textContent =
+            'Kanal: ' + data.channel +
+            '. Şimdi VLC ile video oynatımını dene. ' +
+            'Alt playlist ve video parçaları bu kontrolde test edilmez.';
+        } else {
+          result.textContent = 'Yayın kontrolü başarısız';
+
+          if (data.error === 'KICK_API_ERROR') {
+            detail.textContent =
+              'Kick API HTTP ' + data.upstreamStatus +
+              ' döndürdü. 403 ise Render erişimi engelleniyor; ' +
+              'tarayıcında açılması sunucuda da açılacağını göstermez.';
+          } else if (data.error === 'NO_LIVE_URL') {
+            detail.textContent =
+              'Yayın kapalı veya Kick yanıtında yayın adresi yok. ' +
+              'Yayın açıldığında yeniden kontrol et.';
+          } else if (data.error === 'HLS_SOURCE_ERROR') {
+            detail.textContent =
+              'Adres bulundu, ancak yayın kaynağı HTTP ' +
+              data.upstreamStatus + ' döndürdü.';
+          } else {
+            detail.textContent =
+              data.message || 'Kaynak geçerli bir yayın listesi döndürmedi.';
+          }
+        }
+      } catch (error) {
+        result.textContent = 'Kontrol tamamlanamadı';
+        detail.textContent =
+          'Yeni sürümün dağıtıldığını ve internet bağlantısını kontrol et. ' +
+          'Hata: ' + error.name;
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    document.getElementById('copy').addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(stream.value);
+        document.getElementById('copy').textContent = 'Kopyalandı';
+      } catch {
+        stream.select();
+      }
+    });
+  </script>
+</body>
+</html>
