@@ -1,1 +1,13 @@
-{"name":"telezen-stream","version":"1.0.0","private":true,"type":"module","engines":{"node":">=22"},"scripts":{"start":"node server.js","test":"node --test"}}
+{
+  "name": "telezen-kick-m3u8",
+  "version": "3.2.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  }
+}
