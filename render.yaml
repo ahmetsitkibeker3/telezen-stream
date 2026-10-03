@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: telezen-stream
+    runtime: node
+    plan: starter
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: SOURCE_M3U8
+        value: https://raw.githubusercontent.com/ibrahim9071/kick/refs/heads/main/streams/telezentvchannel.m3u8
+      - key: PROXY_SECRET
+        generateValue: true
